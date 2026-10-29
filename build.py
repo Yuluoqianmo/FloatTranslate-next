@@ -32,13 +32,24 @@ def main():
         args += ["--onedir", "--osx-bundle-identifier", "io.floattranslate.next",
                  "--hidden-import", "Vision", "--hidden-import", "Quartz", "--hidden-import", "Foundation",
                  "--hidden-import", "AppKit"]
+        for source in (root/"LICENSE", root/"THIRD_PARTY_NOTICES.md", root/"licenses"):
+            args += ["--add-data", f"{source}:licenses"]
     else:
         raise SystemExit("Build currently supports Windows and macOS only")
     PyInstaller.__main__.run(args)
     if sys.platform == "darwin":
         import plistlib
         import subprocess
+        import shutil
+        from importlib.metadata import distribution
         bundle = root/"dist/FloatTranslateNext.app"
+        for dependency in ("pyobjc-core", "pyobjc-framework-Cocoa", "pyobjc-framework-Quartz", "pyobjc-framework-Vision", "pyobjc-framework-CoreML"):
+            dist = distribution(dependency)
+            for filename in dist.files or []:
+                if filename.name.lower().startswith(("license", "copying")):
+                    target = bundle/"Contents/Resources/licenses"/dependency/filename.name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(dist.locate_file(filename), target)
         plist = bundle/"Contents/Info.plist"
         data = plistlib.loads(plist.read_bytes())
         data.update({"NSHighResolutionCapable": True, "LSMinimumSystemVersion": "14.0",

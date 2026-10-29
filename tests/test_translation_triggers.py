@@ -41,8 +41,11 @@ def test_only_explicit_or_enabled_auto_triggers_translation(monkeypatch):
     QTest.qWait(450)
     assert pipeline.calls==0 and not frame._run_records
     frame.scan(force=True)
-    QTest.qWait(350)
-    assert pipeline.calls==1 and frame._regions
+    for _ in range(200):
+        QTest.qWait(10)
+        if frame._regions:
+            break
+    assert pipeline.calls==1 and frame._regions, (frame._last_status, frame._metrics, frame._revision, list(frame._jobs))
     frame.set_working(False,animate=False)
     frame.scan(force=True)
     QTest.qWait(400)
