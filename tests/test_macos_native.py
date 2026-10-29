@@ -39,8 +39,10 @@ for language in ('', 'en-US', ''):
                 content = buffer.getvalue()
                 data = Foundation.NSData.dataWithBytes_length_(content,len(content))
                 import subprocess
-                native = subprocess.run(['native/vision-ocr',language],input=content,capture_output=True)
-                print('native Swift OCR:',native.returncode,native.stdout.decode(),native.stderr.decode(),flush=True)
+                for native_language in ('','en-US'):
+                    for flags in (['--fast'],['--cpu'],['--fast','--cpu'],['--revision2']):
+                        native = subprocess.run(['native/vision-ocr',native_language]+flags,input=content,capture_output=True)
+                        print('native Swift OCR:',repr(native_language),flags,native.returncode,native.stdout.decode(),native.stderr.decode(),flush=True)
                 for revision in (3,2):
                     for auto in (False,True):
                         request = Vision.VNRecognizeTextRequest.alloc().init()

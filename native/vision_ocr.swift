@@ -10,6 +10,9 @@ do {
     }
     let request = VNRecognizeTextRequest()
     request.recognitionLevel = .accurate
+    if CommandLine.arguments.contains("--fast") { request.recognitionLevel = .fast }
+    if CommandLine.arguments.contains("--cpu") { request.usesCPUOnly = true }
+    if CommandLine.arguments.contains("--revision2") { request.revision = VNRecognizeTextRequestRevision2 }
     request.usesLanguageCorrection = true
     if CommandLine.arguments.count > 1 && !CommandLine.arguments[1].isEmpty {
         request.recognitionLanguages = [CommandLine.arguments[1]]
