@@ -56,7 +56,7 @@ def main():
                      "LSUIElement": True,
                      "CFBundleDisplayName": "FloatTranslate Next",
                      "NSScreenCaptureUsageDescription": "FloatTranslate captures only the selected screen region to recognize and translate its text.",
-                     "CFBundleShortVersionString": "0.3.8"})
+                     "CFBundleShortVersionString": "0.3.9"})
         plist.write_bytes(plistlib.dumps(data))
         # Locally runnable ad-hoc signature. Public distribution still needs the
         # developer's own Apple certificate and notarization.

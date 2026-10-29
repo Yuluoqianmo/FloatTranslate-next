@@ -74,3 +74,16 @@ def test_mac_vision_bottom_left_coordinates_convert_to_top_left(monkeypatch):
     assert len(regions) == 1
     box = regions[0]
     assert box.x == 100 and round(box.y) == 350 and box.width == 500 and box.height == 50
+
+    calls = []
+    def perform(cg_image, language, *, fast):
+        calls.append(fast)
+        if not fast:
+            raise RuntimeError('TextRecognition.CRImageReaderError.unknownError')
+        return Request.alloc().init()
+    monkeypatch.setattr(MacOCR, '_perform', staticmethod(perform))
+    engine = MacOCR()
+    assert engine.regions(Image.new('RGB',(1000,500)), 'en-US')
+    assert engine.regions(Image.new('RGB',(1000,500)), 'en-US')
+    assert calls == [False, True, True]
+    assert engine.last_backend == 'Apple Vision（兼容识别）'

@@ -27,7 +27,6 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m pip install -r requirements-dev.txt
-      - run: swiftc -O native/vision_ocr.swift -o native/vision-ocr
       - run: python -m pytest tests/test_macos_native.py -v --tb=short
         env:
           QT_QPA_PLATFORM: offscreen
@@ -76,3 +75,35 @@ jobs:
             build-reports/*
           retention-days: 14
           if-no-files-found: warn
+
+  macos27-packaged:
+    if: github.ref != 'refs/heads/macos-build'
+    needs: build
+    runs-on: xcode-27
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: FloatTranslateNext-macOS-ARM64
+          path: ${{ runner.temp }}/incoming
+      - name: Run distributed app on macOS 27.0.1
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/installed" "$RUNNER_TEMP/validation27"
+          for archive in "$RUNNER_TEMP"/incoming/release/*.app.zip; do
+            ditto -x -k "$archive" "$RUNNER_TEMP/installed"
+          done
+          app="$RUNNER_TEMP/installed/FloatTranslateNext.app"
+          codesign --verify --deep --strict "$app"
+          "$app/Contents/MacOS/FloatTranslateNext" --update-health-check "$RUNNER_TEMP/validation27/qt-health.json"
+          "$app/Contents/MacOS/FloatTranslateNext" --mac-self-test "$RUNNER_TEMP/validation27/mac-runtime.json"
+          cat "$RUNNER_TEMP/validation27/mac-runtime.json"
+        env:
+          QT_QPA_PLATFORM: offscreen
+          FLOATTRANSLATE_CONFIG_DIR: ${{ runner.temp }}/validation27/config
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FloatTranslateNext-macOS27-validation
+          path: ${{ runner.temp }}/validation27/*.json
+          retention-days: 14

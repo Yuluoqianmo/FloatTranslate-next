@@ -94,8 +94,8 @@ class MacOCR:
             buffer = io.BytesIO()
             image.convert("RGB").save(buffer, format="PNG")
             data = Foundation.NSData.dataWithBytes_length_(buffer.getvalue(), len(buffer.getvalue()))
-            # Decode with ImageIO and pass a native CGImage. Vision 27's
-            # encoded-data reader rejects this Python/PyObjC input path.
+            # ImageIO gives Vision a native CGImage with an explicit lifetime,
+            # avoiding the encoded-input bridge during request initialization.
             source = Quartz.CGImageSourceCreateWithData(data, None)
             cg_image = Quartz.CGImageSourceCreateImageAtIndex(source, 0, None) if source else None
             if cg_image is None:

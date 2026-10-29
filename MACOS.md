@@ -1,5 +1,7 @@
 # macOS 测试版
 
+0.3.9 修复 macOS 27.0.1 的 Vision 图像请求初始化异常，并在高精度识别失败时自动切换到兼容识别。该路径的识别精度和语言覆盖可能与高精度引擎不同；可在“翻译耗时与诊断”查看实际使用的识别引擎。API Key 无需因此更换。
+
 Apple M1 / M2 / M3 / M4 等 Apple 芯片选择 arm64；Intel Mac 选择 x64。两种架构分别在 GitHub 的原生 macOS 构建机编译。
 
 打开 DMG，将 FloatTranslateNext.app 拖入 Applications（应用程序）。也可以解压 .app.zip 后拖入应用程序。先放入固定位置再授权，避免移动或更新包后权限失效。

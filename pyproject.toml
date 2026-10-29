@@ -1,6 +1,6 @@
 [project]
 name = "floattranslate-next"
-version = "0.3.8"
+version = "0.3.9"
 description = "Resizable native screen translation overlay for Windows and macOS"
 requires-python = ">=3.11"
 
