@@ -31,6 +31,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
   build:
+    if: github.ref != 'refs/heads/macos-build'
     strategy:
       fail-fast: false
       matrix:
