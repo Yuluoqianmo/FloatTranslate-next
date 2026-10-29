@@ -63,7 +63,9 @@ def test_mac_vision_bottom_left_coordinates_convert_to_top_left(monkeypatch):
         def initWithData_options_(self, data, options): return self
         def performRequests_error_(self, requests, error): return True, None
     monkeypatch.setitem(sys.modules,"Vision", SimpleNamespace(VNRecognizeTextRequest=Request, VNImageRequestHandler=Handler, VNRequestTextRecognitionLevelAccurate=1))
-    monkeypatch.setitem(sys.modules,"Foundation", SimpleNamespace(NSData=SimpleNamespace(dataWithBytes_length_=lambda data,length:data)))
+    monkeypatch.setitem(sys.modules,"Foundation", SimpleNamespace(
+        NSData=SimpleNamespace(dataWithBytes_length_=lambda data,length:data),
+        NSDictionary=SimpleNamespace(dictionary=lambda: {})))
     monkeypatch.setitem(sys.modules,"objc", SimpleNamespace(autorelease_pool=nullcontext))
     regions = MacOCR().regions(Image.new("RGB", (1000,500)), "en-US")
     assert len(regions) == 1

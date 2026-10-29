@@ -96,7 +96,11 @@ class MacOCR:
                 request.setRecognitionLanguages_([language])
             elif hasattr(request, "setAutomaticallyDetectsLanguage_"):
                 request.setAutomaticallyDetectsLanguage_(True)
-            handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(data, {})
+            # Vision 27 queries optional keys during initialization. A native
+            # NSDictionary returns nil for absent keys; a Python mapping proxy
+            # can raise NSInvalidArgumentException ("key does not exist").
+            options = Foundation.NSDictionary.dictionary()
+            handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(data, options)
             ok, error = handler.performRequests_error_([request], None)
             if not ok or error:
                 raise RuntimeError("Apple Vision 识别失败，请检查 OCR 语言设置")

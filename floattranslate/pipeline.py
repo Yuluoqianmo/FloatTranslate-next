@@ -70,7 +70,13 @@ class Pipeline:
         regions = self.recognitions.get(image_key)
         self.metrics['ocr_cached']=regions is not None
         if regions is None:
-            regions = self.ocr.regions(image, language)
+            try:
+                regions = self.ocr.regions(image, language)
+            except Exception as error:
+                self.metrics['failed_stage'] = 'ocr'
+                raise RuntimeError('本机 OCR 文字识别失败：' + str(error)) from error
+            finally:
+                self.metrics['ocr_ms'] = round((time.monotonic()-ocr_started)*1000)
             self.recognitions.put(image_key, regions)
         self.metrics["ocr_ms"] = round((time.monotonic()-ocr_started)*1000)
         self.metrics["paragraphs"] = len(regions)
