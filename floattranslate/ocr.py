@@ -67,6 +67,10 @@ class WindowsOCR:
 class MacOCR:
     """Apple Vision, imported only on macOS. No OCR model download."""
 
+    def __init__(self):
+        self._compat_languages = set()
+        self.last_backend = 'Apple Vision（高精度）'
+
     def languages(self):
         import Vision
         import objc
@@ -90,25 +94,26 @@ class MacOCR:
             buffer = io.BytesIO()
             image.convert("RGB").save(buffer, format="PNG")
             data = Foundation.NSData.dataWithBytes_length_(buffer.getvalue(), len(buffer.getvalue()))
-            request = Vision.VNRecognizeTextRequest.alloc().init()
-            request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
-            request.setUsesLanguageCorrection_(True)
-            if language:
-                request.setRecognitionLanguages_([language])
-            elif hasattr(request, "setAutomaticallyDetectsLanguage_"):
-                request.setAutomaticallyDetectsLanguage_(True)
             # Decode with ImageIO and pass a native CGImage. Vision 27's
             # encoded-data reader rejects this Python/PyObjC input path.
             source = Quartz.CGImageSourceCreateWithData(data, None)
             cg_image = Quartz.CGImageSourceCreateImageAtIndex(source, 0, None) if source else None
             if cg_image is None:
                 raise RuntimeError('无法解码本机 OCR 截图')
-            # Optional dictionary keys must return nil rather than KeyError.
-            options = Foundation.NSDictionary.dictionary()
-            handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(cg_image, options)
-            ok, error = handler.performRequests_error_([request], None)
-            if not ok or error:
-                raise RuntimeError("Apple Vision 识别失败：" + str(error or '未返回识别结果'))
+            if language in self._compat_languages:
+                request = self._perform(cg_image, language, fast=True)
+                self.last_backend = 'Apple Vision（兼容识别）'
+            else:
+                try:
+                    request = self._perform(cg_image, language, fast=False)
+                    self.last_backend = 'Apple Vision（高精度）'
+                except Exception as accurate_error:
+                    try:
+                        request = self._perform(cg_image, language, fast=True)
+                    except Exception as fast_error:
+                        raise RuntimeError(f'Apple Vision 高精度识别失败：{accurate_error}；兼容识别也失败：{fast_error}') from fast_error
+                    self._compat_languages.add(language)
+                    self.last_backend = 'Apple Vision（兼容识别）'
             lines = []
             for observation in request.results() or []:
                 candidates = observation.topCandidates_(1)
@@ -118,6 +123,27 @@ class MacOCR:
                                             (1 - box.origin.y - box.size.height) * image.height,
                                             box.size.width * image.width, box.size.height * image.height))
             return merge_lines(lines)
+
+    @staticmethod
+    def _perform(cg_image, language, *, fast):
+        import Vision
+        import Foundation
+        request = Vision.VNRecognizeTextRequest.alloc().init()
+        level = Vision.VNRequestTextRecognitionLevelFast if fast else Vision.VNRequestTextRecognitionLevelAccurate
+        request.setRecognitionLevel_(level)
+        request.setUsesLanguageCorrection_(True)
+        if language:
+            request.setRecognitionLanguages_([language])
+        elif hasattr(request, 'setAutomaticallyDetectsLanguage_'):
+            request.setAutomaticallyDetectsLanguage_(True)
+        # Vision 27's accurate recognizer can fail with CRImageReaderError;
+        # the independent fast recognizer remains usable on the same input.
+        options = Foundation.NSDictionary.dictionary()
+        handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(cg_image, options)
+        ok, error = handler.performRequests_error_([request], None)
+        if not ok or error:
+            raise RuntimeError(str(error or '未返回识别结果'))
+        return request
 
 
 def create_ocr():

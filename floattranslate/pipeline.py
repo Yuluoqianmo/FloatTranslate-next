@@ -79,6 +79,7 @@ class Pipeline:
                 self.metrics['ocr_ms'] = round((time.monotonic()-ocr_started)*1000)
             self.recognitions.put(image_key, regions)
         self.metrics["ocr_ms"] = round((time.monotonic()-ocr_started)*1000)
+        self.metrics['ocr_backend'] = getattr(self.ocr, 'last_backend', '')
         self.metrics["paragraphs"] = len(regions)
         if not regions:
             return []

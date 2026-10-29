@@ -55,6 +55,8 @@ class TimingsDialog(QDialog):
             return
         record=self.records[index]
         self.summary.setText(f"模型：{record.get('model','—')}\n目标语言：{record.get('target','—')}\n截图：{record.get('capture_backend','—')}\n结果：{record.get('status','—')} · 缓存 {record.get('cache_hits',0)} / {record.get('paragraphs',0)} 段")
+        if record.get('ocr_backend'):
+            self.summary.setText(self.summary.text() + '\n文字识别：' + record['ocr_backend'])
         stages=[('截图','capture_ms'),('画面比对','scene_ms'),('线程排队','queue_ms'),('图像摘要','hash_ms'),('OCR 识别'+('（缓存）' if record.get('ocr_cached') else ''),'ocr_ms'),('段落缓存查询','cache_ms'),('连接准备（客户端）','client_init_ms'),('接口等待与生成（含格式解析）','api_ms'),('↳ 首个内容返回','first_content_ms'),('↳ 结果格式解析','format_ms'),('覆盖绘制（CPU 提交）','render_ms'),('端到端总耗时','end_to_end_ms')]
         if not self.details.isChecked():
             stages=[('截取原文','capture_ms'),('识别文字'+('（缓存）' if record.get('ocr_cached') else ''),'ocr_ms'),('准备连接','client_init_ms'),('等待模型翻译','api_ms'),('显示译文','render_ms'),('本次总耗时','end_to_end_ms')]
