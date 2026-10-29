@@ -357,10 +357,30 @@ class BookmarkFrame(RecognitionFrame):
             p.drawText(text_box,int(flags),item.translation)
             p.restore()
         p.restore()
-        border_color = '#a2aabb' if self._paused else '#c47487' if self._last_status.startswith('错误') else '#4b8df8' if self._busy else '#8dadd5'
-        p.setPen(QPen(QColor(border_color),max(1,min(2,self.settings.border_width)*.75)))
+        border = QRectF(self.content_rect())
+        width = max(1,min(2,self.settings.border_width)*.75)
+        color = QColor('#a2aabb' if self._paused else '#c47487' if self._last_status.startswith('错误') else '#8dadd5')
         p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawRoundedRect(QRectF(self.content_rect()),9,9)
+        if self._busy and not self._paused and not self._last_status.startswith('错误'):
+            # A fixed-size contour gently brightens over 3.2 seconds. Never
+            # expand the outline or fade the translated content with it.
+            elapsed = time.monotonic()-self._breath_started
+            strength = 0.5-0.5*math.cos(math.tau*elapsed/3.2)
+            if self.settings.reduce_motion:
+                strength = 0.5
+            color = QColor('#4387ee')
+            color.setAlpha(round(150+90*strength))
+            if not self._shaped:
+                # One compact glow, clipped outside the selection, with no
+                # auxiliary window, concentric outlines or changing radius.
+                p.save()
+                outside = QRegion(self.rect())-QRegion(self.content_rect())
+                p.setClipRegion(outside)
+                p.setPen(QPen(QColor(70,135,245,round(8+12*strength)),5))
+                p.drawRoundedRect(border,9,9)
+                p.restore()
+        p.setPen(QPen(color,width))
+        p.drawRoundedRect(border,9,9)
         if self._handle_visible:
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor('#1460ff'))
@@ -470,6 +490,8 @@ class BookmarkFrame(RecognitionFrame):
             self.halo.setGeometry(self.geometry().adjusted(-PAD,-PAD,PAD,PAD))
 
     def _set_busy(self, busy):
+        if busy and not self._busy:
+            self._breath_started = time.monotonic()
         super()._set_busy(busy)
         if self._ready:
             self._sync_halo()
@@ -482,6 +504,9 @@ class BookmarkFrame(RecognitionFrame):
     def _animate(self):
         self._phase = (self._phase+10) % 360
         if self._ready:
+            # Update only the contour band, not the translated paragraphs.
+            inner = self.content_rect().adjusted(3,3,-3,-3)
+            self.update(QRegion(self.rect())-QRegion(inner))
             self.bookmark.update()
 
     def _refresh_capture_exclusion(self):
