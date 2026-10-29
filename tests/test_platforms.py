@@ -72,8 +72,8 @@ def test_mac_vision_bottom_left_coordinates_convert_to_top_left(monkeypatch):
         CGImageSourceCreateImageAtIndex=lambda source,index,options: source))
     regions = MacOCR().regions(Image.new("RGB", (1000,500)), "en-US")
     assert len(regions) == 1
-    box = regions[0]
-    assert box.x == 100 and round(box.y) == 350 and box.width == 500 and box.height == 50
+    region = regions[0]
+    assert region.x == 100 and round(region.y) == 350 and region.width == 500 and region.height == 50
 
     calls = []
     def perform(cg_image, language, *, fast):
