@@ -84,6 +84,7 @@ class MacOCR:
     def regions(self, image: Image.Image, language: str = "") -> list[TextRegion]:
         import Vision
         import Foundation
+        import Quartz
         import objc
         with objc.autorelease_pool():
             buffer = io.BytesIO()
@@ -96,11 +97,15 @@ class MacOCR:
                 request.setRecognitionLanguages_([language])
             elif hasattr(request, "setAutomaticallyDetectsLanguage_"):
                 request.setAutomaticallyDetectsLanguage_(True)
-            # Vision 27 queries optional keys during initialization. A native
-            # NSDictionary returns nil for absent keys; a Python mapping proxy
-            # can raise NSInvalidArgumentException ("key does not exist").
+            # Decode with ImageIO and pass a native CGImage. Vision 27's
+            # encoded-data reader rejects this Python/PyObjC input path.
+            source = Quartz.CGImageSourceCreateWithData(data, None)
+            cg_image = Quartz.CGImageSourceCreateImageAtIndex(source, 0, None) if source else None
+            if cg_image is None:
+                raise RuntimeError('无法解码本机 OCR 截图')
+            # Optional dictionary keys must return nil rather than KeyError.
             options = Foundation.NSDictionary.dictionary()
-            handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(data, options)
+            handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(cg_image, options)
             ok, error = handler.performRequests_error_([request], None)
             if not ok or error:
                 raise RuntimeError("Apple Vision 识别失败：" + str(error or '未返回识别结果'))
