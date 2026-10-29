@@ -27,6 +27,7 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m pip install -r requirements-dev.txt
+      - run: swiftc -O native/vision_ocr.swift -o native/vision-ocr
       - run: python -m pytest tests/test_macos_native.py -v --tb=short
         env:
           QT_QPA_PLATFORM: offscreen

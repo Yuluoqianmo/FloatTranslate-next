@@ -31,12 +31,16 @@ for language in ('', 'en-US', ''):
         try:
             return engine.regions(image, language)
         except Exception:
+            original_error = traceback.format_exc()
             import io, Vision, Foundation, objc
             with objc.autorelease_pool():
                 buffer = io.BytesIO()
                 image.save(buffer,format='PNG')
                 content = buffer.getvalue()
                 data = Foundation.NSData.dataWithBytes_length_(content,len(content))
+                import subprocess
+                native = subprocess.run(['native/vision-ocr',language],input=content,capture_output=True)
+                print('native Swift OCR:',native.returncode,native.stdout.decode(),native.stderr.decode(),flush=True)
                 for revision in (3,2):
                     for auto in (False,True):
                         request = Vision.VNRecognizeTextRequest.alloc().init()
@@ -50,7 +54,7 @@ for language in ('', 'en-US', ''):
                             print('probe',revision,auto,ok,str(error),flush=True)
                         except Exception as error:
                             print('probe exception',revision,auto,str(error),flush=True)
-            return traceback.format_exc()
+            return original_error
     task = Task(language, work)
     def finished(payload):
         outcome.append(payload)
