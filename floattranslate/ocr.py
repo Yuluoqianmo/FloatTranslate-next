@@ -115,6 +115,12 @@ def create_ocr():
     if sys.platform == "win32":
         return WindowsOCR()
     if sys.platform == "darwin":
+        # Register PyObjC framework metadata on the GUI thread before the
+        # preferences/OCR pools can import it concurrently with Qt and GC.
+        import AppKit
+        import Foundation
+        import Quartz
+        import Vision
         return MacOCR()
     raise RuntimeError("当前支持 Windows 和 macOS；Linux OCR 后端尚未实现")
 

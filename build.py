@@ -41,7 +41,7 @@ def main():
         bundle = root/"dist/FloatTranslateNext.app"
         plist = bundle/"Contents/Info.plist"
         data = plistlib.loads(plist.read_bytes())
-        data.update({"NSHighResolutionCapable": True, "LSMinimumSystemVersion": "13.0",
+        data.update({"NSHighResolutionCapable": True, "LSMinimumSystemVersion": "14.0",
                      "LSUIElement": True,
                      "CFBundleDisplayName": "FloatTranslate Next",
                      "NSScreenCaptureUsageDescription": "FloatTranslate captures only the selected screen region to recognize and translate its text.",

@@ -9,6 +9,13 @@ from PySide6.QtWidgets import QApplication
 
 from floattranslate import capture
 from floattranslate.ocr import MacOCR
+from floattranslate.hotkey import mac_modifier_flags
+
+
+def test_mac_hotkey_modifiers_follow_qt_command_control_semantics():
+    assert mac_modifier_flags(Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier) == (1 << 20) | (1 << 19)
+    assert mac_modifier_flags(Qt.KeyboardModifier.MetaModifier) == 1 << 18
+    assert mac_modifier_flags(Qt.KeyboardModifier.ShiftModifier) == 1 << 17
 
 
 def test_capture_negative_origin_and_mixed_dpi(monkeypatch):

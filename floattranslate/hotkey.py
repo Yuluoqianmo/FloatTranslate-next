@@ -53,11 +53,7 @@ class ToggleHotkey(QObject):
             self.registered = True
         elif sys.platform == "darwin":
             from AppKit import NSEvent, NSEventMaskKeyDown
-            expected = 0
-            for qt, native in ((Qt.KeyboardModifier.ShiftModifier,1 << 17), (Qt.KeyboardModifier.ControlModifier,1 << 18),
-                               (Qt.KeyboardModifier.AltModifier,1 << 19), (Qt.KeyboardModifier.MetaModifier,1 << 20)):
-                if mods & qt:
-                    expected |= native
+            expected = mac_modifier_flags(mods)
             # NSEvent global monitoring needs Accessibility permission for keys.
             # Local monitoring still works when the user has not granted it.
             label = QKeySequence(int(key)).toString().lower()
@@ -104,3 +100,15 @@ class ToggleHotkey(QObject):
             self.local.setEnabled(False)
             self.local.deleteLater()
             self.local = None
+
+
+def mac_modifier_flags(mods):
+    # Qt Control means Command on macOS; Qt Meta means the physical Control key.
+    flags = 0
+    for qt, native in ((Qt.KeyboardModifier.ShiftModifier, 1 << 17),
+                       (Qt.KeyboardModifier.MetaModifier, 1 << 18),
+                       (Qt.KeyboardModifier.AltModifier, 1 << 19),
+                       (Qt.KeyboardModifier.ControlModifier, 1 << 20)):
+        if mods & qt:
+            flags |= native
+    return flags

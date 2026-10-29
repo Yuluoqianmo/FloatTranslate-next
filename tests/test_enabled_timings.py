@@ -140,6 +140,10 @@ def test_unreliable_desktop_is_not_used_to_cancel_translation(monkeypatch):
 
 
 def test_auto_monitor_uses_source_capture_without_affinity(monkeypatch):
+    import sys
+    if sys.platform != 'win32':
+        import pytest
+        pytest.skip('Independent underlying-window capture is a Windows backend')
     monkeypatch.setattr(ToggleHotkey,'install',lambda self,text:None)
     app=QApplication.instance() or QApplication([])
     frame=BookmarkFrame(test_mode=True)
