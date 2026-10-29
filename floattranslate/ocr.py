@@ -103,7 +103,7 @@ class MacOCR:
             handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(data, options)
             ok, error = handler.performRequests_error_([request], None)
             if not ok or error:
-                raise RuntimeError("Apple Vision 识别失败，请检查 OCR 语言设置")
+                raise RuntimeError("Apple Vision 识别失败：" + str(error or '未返回识别结果'))
             lines = []
             for observation in request.results() or []:
                 candidates = observation.topCandidates_(1)

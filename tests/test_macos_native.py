@@ -31,6 +31,25 @@ for language in ('', 'en-US', ''):
         try:
             return engine.regions(image, language)
         except Exception:
+            import io, Vision, Foundation, objc
+            with objc.autorelease_pool():
+                buffer = io.BytesIO()
+                image.save(buffer,format='PNG')
+                content = buffer.getvalue()
+                data = Foundation.NSData.dataWithBytes_length_(content,len(content))
+                for revision in (3,2):
+                    for auto in (False,True):
+                        request = Vision.VNRecognizeTextRequest.alloc().init()
+                        request.setRevision_(revision)
+                        request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+                        if auto: request.setAutomaticallyDetectsLanguage_(True)
+                        else: request.setRecognitionLanguages_(['en-US'])
+                        handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(data,Foundation.NSDictionary.dictionary())
+                        try:
+                            ok,error = handler.performRequests_error_([request],None)
+                            print('probe',revision,auto,ok,str(error),flush=True)
+                        except Exception as error:
+                            print('probe exception',revision,auto,str(error),flush=True)
             return traceback.format_exc()
     task = Task(language, work)
     def finished(payload):
