@@ -13,7 +13,9 @@ def test_default_and_explicit_ocr_in_worker():
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image, ImageDraw, ImageFont
 from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QEventLoop, QThreadPool, QTimer
 from floattranslate.ocr import create_ocr
+from floattranslate.tasks import Task
 application = QApplication([])
 engine = create_ocr()
 image = Image.new('RGB', (1100,220), 'white')
@@ -25,6 +27,31 @@ with ThreadPoolExecutor(max_workers=1) as pool:
         text = ' '.join(item.text for item in regions)
         assert 'test 123' in text.lower(), (language, text)
         print('worker OCR success:', repr(language), flush=True)
+pool = QThreadPool()
+pool.setMaxThreadCount(1)
+for language in ('en-US', '', ''):
+    loop = QEventLoop()
+    outcome = []
+    def work():
+        import traceback
+        try:
+            return engine.regions(image, language)
+        except Exception:
+            return traceback.format_exc()
+    task = Task(language, work)
+    def finished(payload):
+        outcome.append(payload)
+        loop.quit()
+    task.signals.finished.connect(finished)
+    QTimer.singleShot(40000, loop.quit)
+    pool.start(task)
+    loop.exec()
+    assert outcome, 'Qt OCR timed out'
+    identity, regions, error = outcome[0]
+    assert not error and not isinstance(regions,str), (language, error, regions)
+    assert 'test 123' in ' '.join(item.text for item in regions).lower()
+    print('Qt worker OCR success:', repr(language), flush=True)
+pool.waitForDone()
 '''
     result = subprocess.run([sys.executable, "-c", script], cwd=Path(__file__).resolve().parents[1],
                             env=dict(os.environ, QT_QPA_PLATFORM="offscreen"), capture_output=True, text=True, timeout=120)
