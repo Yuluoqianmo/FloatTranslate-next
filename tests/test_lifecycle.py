@@ -61,6 +61,9 @@ def opened():
         else:
             dialog.close()
     QTimer.singleShot(100,finish)
+    # Start verification after construction, which can exceed 800 ms on a
+    # cold Intel macOS font/framework cache. The dialog action must run first.
+    QTimer.singleShot(800,verify)
 
 def verify():
     state.update(alive_after_dialog=True,visible=frame.isVisible(),
@@ -74,8 +77,7 @@ def verify():
     QTimer.singleShot(150,app.quit)
 
 QTimer.singleShot(0,opened)
-QTimer.singleShot(800,verify)
-QTimer.singleShot(5000,app.quit)
+QTimer.singleShot(10000,app.quit)
 app.exec()
 print(json.dumps(state))
 '''
