@@ -1,0 +1,56 @@
+name: Test and package desktop app
+on:
+  workflow_dispatch:
+  push:
+    branches: ['main', 'macos-build']
+    tags: ['v*', 'next-v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x64
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Confirm native Python architecture
+        run: python -c "import platform; print(platform.platform(), platform.machine()); assert platform.machine().lower() in ('${{ matrix.arch }}', 'amd64' if '${{ matrix.arch }}' == 'x64' else 'arm64', 'x86_64' if '${{ matrix.arch }}' == 'x64' else 'aarch64')"
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - run: python build.py
+      - name: Validate packaged macOS app and create installers
+        if: runner.os == 'macOS'
+        run: python package_macos.py
+        env:
+          QT_QPA_PLATFORM: offscreen
+          FLOATTRANSLATE_CONFIG_DIR: ${{ runner.temp }}/floattranslate-ci
+      - name: Prepare Windows update EXE and manifest
+        if: runner.os == 'Windows'
+        run: python release_manifest.py dist/FloatTranslateNext.exe release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FloatTranslateNext-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            dist/*.exe
+            release/*
+            build-reports/*
+          retention-days: 14
+          if-no-files-found: warn

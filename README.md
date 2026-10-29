@@ -2,6 +2,10 @@
 
 基于 [CH-DONG77/FloatTranslate](https://github.com/CH-DONG77/FloatTranslate) 的本地二次开发版本。上游参考分支 `panel`，提交 `1b521d19257dd592e1ebf8c9bbac0961ce3000cc`。保留上游 MIT 许可证；本版本改用 Qt/PySide6，重新实现覆盖界面与平台适配。
 
+## macOS 测试包构建
+
+GitHub Actions 在 `macos-15`（Apple 芯片 arm64）与 `macos-15-intel`（Intel x64）分别构建。打开仓库 Actions → Test and package desktop app → 成功的运行，在 Artifacts 下载对应架构，内含 `.app.zip`、`.dmg` 和 SHA-256。安装和权限详见 [MACOS.md](MACOS.md)。构建完成不代表桌面权限、多屏和全局快捷键已通过用户实机验收。
+
 ## 0.3.8 关于与 GitHub 更新
 
 - 右键“关于 / 检查更新”查看版本、系统、许可证、原项目来源，并配置独立的更新仓库。

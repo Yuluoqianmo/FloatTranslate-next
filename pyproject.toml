@@ -1,0 +1,9 @@
+[project]
+name = "floattranslate-next"
+version = "0.3.8"
+description = "Resizable native screen translation overlay for Windows and macOS"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
