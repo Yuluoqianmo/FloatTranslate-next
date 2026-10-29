@@ -1,4 +1,6 @@
 from PIL import Image,ImageDraw
+import sys
+import pytest
 from PySide6.QtCore import QPoint,Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
@@ -31,6 +33,7 @@ def test_movement_band_and_large_resize_corners():
     assert interaction_at(QPoint(10,200),720,400) == ""
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows shaped-window native mask")
 def test_native_mask_is_not_reset_when_unchanged():
     application = QApplication.instance() or QApplication([])
     frame = RecognitionFrame(test_mode=True)
