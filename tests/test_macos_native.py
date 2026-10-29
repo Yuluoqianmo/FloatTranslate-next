@@ -21,15 +21,9 @@ engine = create_ocr()
 image = Image.new('RGB', (1100,220), 'white')
 font = ImageFont.truetype('/System/Library/Fonts/Supplemental/Arial.ttf', 64)
 ImageDraw.Draw(image).text((40,60), 'FloatTranslate test 123', fill='black', font=font)
-with ThreadPoolExecutor(max_workers=1) as pool:
-    for language in ('en-US', '', ''):
-        regions = pool.submit(engine.regions, image, language).result(timeout=40)
-        text = ' '.join(item.text for item in regions)
-        assert 'test 123' in text.lower(), (language, text)
-        print('worker OCR success:', repr(language), flush=True)
 pool = QThreadPool()
 pool.setMaxThreadCount(1)
-for language in ('en-US', '', ''):
+for language in ('', 'en-US', ''):
     loop = QEventLoop()
     outcome = []
     def work():
@@ -52,6 +46,12 @@ for language in ('en-US', '', ''):
     assert 'test 123' in ' '.join(item.text for item in regions).lower()
     print('Qt worker OCR success:', repr(language), flush=True)
 pool.waitForDone()
+with ThreadPoolExecutor(max_workers=1) as pool:
+    for language in ('', 'en-US', ''):
+        regions = pool.submit(engine.regions, image, language).result(timeout=40)
+        text = ' '.join(item.text for item in regions)
+        assert 'test 123' in text.lower(), (language, text)
+        print('worker OCR success:', repr(language), flush=True)
 '''
     result = subprocess.run([sys.executable, "-c", script], cwd=Path(__file__).resolve().parents[1],
                             env=dict(os.environ, QT_QPA_PLATFORM="offscreen"), capture_output=True, text=True, timeout=120)
