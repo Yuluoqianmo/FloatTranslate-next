@@ -40,7 +40,7 @@ def rounded_region(rect, radius=9):
 
 class AuxiliaryWindow(QWidget):
     def __init__(self, owner, *, interactive=False):
-        flags = Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
+        flags = Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint
         if owner.settings.always_on_top:
             flags |= Qt.WindowType.WindowStaysOnTopHint
         if not interactive:
@@ -79,13 +79,19 @@ class BookmarkWindow(AuxiliaryWindow):
         path.quadTo(5, 2, 7, 2)
         p.setPen(Qt.PenStyle.NoPen)
         p.fillPath(path, QColor('#2775ff' if self._hover else '#1460ff'))
-        breathing = .65+.35*math.sin(time.monotonic()*math.pi/1.2)**2 if self.owner._busy else .8
-        p.setOpacity(breathing)
         p.setBrush(Qt.GlobalColor.white)
-        for x in (18,23,28):
-            for y in (15,20):
-                p.drawEllipse(QPoint(x,y),1,1)
-        p.setOpacity(1)
+        if self.owner._busy:
+            # Keep activity local to the bookmark; the selection stays still.
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(QColor(255, 255, 255, 210), 1.6,
+                          Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            angle = 90 if self.owner.settings.reduce_motion else -self.owner._phase
+            p.drawArc(QRectF(18, 12, 11, 11), round(angle*16), 260*16)
+        else:
+            p.setPen(Qt.PenStyle.NoPen)
+            for x in (18,23,28):
+                for y in (15,20):
+                    p.drawEllipse(QPoint(x,y),1,1)
         p.setPen(Qt.GlobalColor.white)
         font = QFont(QApplication.font())
         font.setPixelSize(22)
@@ -160,25 +166,7 @@ class BookmarkWindow(AuxiliaryWindow):
 
 
 class HaloWindow(AuxiliaryWindow):
-    """Transparent center, soft rings only OUTSIDE the capture area."""
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        strength = .55 if self.owner.settings.reduce_motion else .2+.8*(.5-.5*math.cos(time.monotonic()*math.tau/2.4))
-        base = QRectF(self.owner.content_rect()).translated(PAD,PAD)
-        outside = QPainterPath()
-        outside.addRect(QRectF(self.rect()))
-        inner = QPainterPath()
-        inner.addRect(base.adjusted(-1,-1,1,1))
-        p.setClipPath(outside.subtracted(inner))
-        # Layered outlines approximate a Gaussian glow, no full-surface blur.
-        for spread in range(24,0,-1):
-            alpha = round((1-spread/25)**1.4*34*strength)
-            p.setPen(QPen(QColor(65,125,255,alpha),2))
-            p.setBrush(Qt.BrushStyle.NoBrush)
-            radius = spread*(.5+.5*strength)
-            p.drawRoundedRect(base.adjusted(-radius,-radius,radius,radius),9+radius,9+radius)
-        p.end()
+    """Reserved auxiliary surface; activity now lives in the bookmark."""
 
 
 class TransitionWindow(AuxiliaryWindow):
@@ -369,7 +357,8 @@ class BookmarkFrame(RecognitionFrame):
             p.drawText(text_box,int(flags),item.translation)
             p.restore()
         p.restore()
-        p.setPen(QPen(QColor('#aac7f4'),max(1,min(2,self.settings.border_width))))
+        border_color = '#a2aabb' if self._paused else '#c47487' if self._last_status.startswith('错误') else '#4b8df8' if self._busy else '#8dadd5'
+        p.setPen(QPen(QColor(border_color),max(1,min(2,self.settings.border_width)*.75)))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawRoundedRect(QRectF(self.content_rect()),9,9)
         if self._handle_visible:
@@ -484,14 +473,15 @@ class BookmarkFrame(RecognitionFrame):
         super()._set_busy(busy)
         if self._ready:
             self._sync_halo()
-            self.halo.setVisible(busy and self.working and not self._transitioning)
+            self.halo.hide()
+            self.update()
             if busy:
                 self.bookmark.raise_()
             self.bookmark.update()
 
     def _animate(self):
+        self._phase = (self._phase+10) % 360
         if self._ready:
-            self.halo.update()
             self.bookmark.update()
 
     def _refresh_capture_exclusion(self):
@@ -586,8 +576,6 @@ class BookmarkFrame(RecognitionFrame):
         if self._transitioning:
             if force:
                 self._manual_on_open=True
-            return
-        if sys.platform=="win32" and not force and self._regions and not self._independent_capture_available:
             return
         if self._jobs:
             if force:

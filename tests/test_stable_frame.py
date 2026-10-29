@@ -111,3 +111,31 @@ def test_wide_top_band_moves_with_simple_drag():
     assert frame.pos() == start+QPoint(50,30)
     assert DRAG_BAR_HEIGHT == 28
     frame.close()
+
+
+def test_fallback_auto_ticks_preserve_translation_without_hiding(monkeypatch):
+    application = QApplication.instance() or QApplication([])
+    frame = RecognitionFrame(test_mode=True)
+    frame.show()
+    application.processEvents()
+    frame._excluded = False
+    frame._auto = True
+    region = OverlayRegion(TextRegion('hello',20,20,100,30),'你好')
+    frame._regions = [region]
+    captures, opacity = [], []
+    monkeypatch.setattr(frame,'scan_capture',lambda: captures.append(True))
+    monkeypatch.setattr(frame,'setWindowOpacity',lambda value: opacity.append(value))
+    monkeypatch.setattr(frame,'_connection',lambda: Connection('custom','http://localhost:1234/v1','openai',''))
+    for _ in range(4):
+        frame._automatic_scan()
+        QTest.qWait(100)
+    assert not captures and not opacity
+    assert frame._regions == [region] and not frame._capture_pending
+    # An explicit refresh must still reach the fallback capture path.
+    monkeypatch.setattr(frame,'_capture_and_submit',lambda *args: captures.append(True))
+    frame.scan(force=True)
+    QTest.qWait(150)
+    assert captures == [True] and opacity == [0]
+    frame._capture_pending = False
+    frame._capturing = False
+    frame.close()

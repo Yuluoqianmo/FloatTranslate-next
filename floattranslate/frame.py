@@ -85,7 +85,7 @@ def app_icon() -> QIcon:
 
 class RecognitionFrame(QWidget):
     def __init__(self, settings: Settings | None = None, *, ocr=None, pipeline=None, test_mode=False):
-        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.NoDropShadowWindowHint
         self.settings = settings or Settings.load()
         if self.settings.always_on_top:
             flags |= Qt.WindowType.WindowStaysOnTopHint
@@ -735,6 +735,11 @@ class RecognitionFrame(QWidget):
         if self._busy or self._capture_pending or self._drag_origin is not None or self._closing or self._menu_open or self._dialog is not None or QApplication.activePopupWidget() is not None or QToolTip.isVisible():
             return
         if self._paused and not force:
+            return
+        # A fallback capture hides the translated window before it can compare
+        # scenes. Repeating that on a timer flashes even an unchanged page.
+        # Preserve completed text until an explicit refresh or invalidation.
+        if not force and self._regions and not self.visible_capture_available():
             return
         try:
             connection = self._connection()

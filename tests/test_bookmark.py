@@ -70,10 +70,11 @@ def test_right_anchor_and_left_resize(bookmark):
     assert bookmark.bookmark.pos() == anchor
 
 
-def test_busy_halo_and_preferences_do_not_expand_standby(bookmark):
+def test_busy_indicator_stays_in_bookmark_and_preferences_preserve_standby(bookmark):
     bookmark.set_working(True,animate=False,scan=False)
     bookmark._set_busy(True)
-    assert bookmark.halo.isVisible()
+    assert not bookmark.halo.isVisible()
+    assert bookmark.animation_timer.isActive()
     bookmark.set_working(False,animate=False)
     assert not bookmark.halo.isVisible() and not bookmark.animation_timer.isActive()
     bookmark.apply_settings(replace(bookmark.settings,always_on_top=not bookmark.settings.always_on_top))

@@ -15,3 +15,11 @@ OCR 使用 Apple Vision，无需额外下载识别模型。API 设置沿用兼�
 构建后自动验证：Qt 启动、PyObjC / AppKit / Quartz 导入、Apple Vision 对合成英文图片的真实识别、架构和 ad-hoc 签名。CI 不采集屏幕、不请求翻译 API、不授予系统隐私权限。因此屏幕捕获、真实桌面覆盖、多屏 Retina、鼠标穿透、全局快捷键仍须在你的 Mac 实机验证。当前 macOS 不支持 Windows 的独立底层窗口捕获，自动翻译监测走受限的截图降级路径；以手动立即翻译为主进行测试。
 
 本次构建环境为 macOS 15，Qt 6.12 依赖要求 macOS 14 或更新系统；14 尚未实机验收。macOS 自动安装更新尚未实现，可从“关于”打开仓库安装新版。
+
+## 选区外观与刷新行为
+
+选区使用单层细描边，不再绘制外围呼吸光圈，也不叠加系统窗口阴影。识别时仅书签顶部显示旋转进度，完成后停止；开启“减少动态效果”时进度标记保持静止。
+
+macOS 当前仍使用隐藏译文窗口后截图的兼容路径。自动翻译可以完成首次识别，但已有译文时不再定时重截，以免整个译文窗口周期性闪烁。页面滚动或内容变化后，请按回车、翻译快捷键或“立即翻译”刷新；拖动或清除译文后可重新自动识别。支持独立捕获的 Windows 源窗口路径继续自动监测。
+
+外观参考：QuickRecorder 的无阴影选区与细描边（`QuickRecorder/ViewModel/AreaSelector.swift`），以及 Easydict 的细边框卡片（`Easydict/Swift/Utility/Views/View+BorderedCard.swift`）；本次使用 Qt 重新实现，未复制 Swift 代码。
