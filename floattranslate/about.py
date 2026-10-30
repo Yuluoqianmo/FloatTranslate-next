@@ -244,6 +244,7 @@ def show_about(owner):
         owner._dialog.raise_()
         owner._dialog.activateWindow()
         return
+    owner._prepare_dialog()
     owner._dialog = AboutDialog(owner)
     owner._dialog.finished.connect(owner._dialog_finished)
     owner._dialog.show()

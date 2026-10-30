@@ -34,3 +34,11 @@ QListWidget::item {padding:7px 10px;}
 QListWidget::item:selected {background:#e9edff; color:#3556d7;}
 QToolTip { background: #242d40; color: white; border: none; padding: 8px; }
 """
+
+# Only semantic text roles are styled on macOS; AppKit / Qt's macOS style
+# owns control geometry, menu appearance and the light/dark palette.
+MAC_STYLESHEET = """
+QLabel[role='title'] { font-size: 23px; font-weight: 600; }
+QLabel[role='muted'] { color: palette(placeholder-text); }
+QLabel[role='error'] { color: #c84a50; }
+"""

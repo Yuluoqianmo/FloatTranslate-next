@@ -19,6 +19,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QToolTip, QWidget
 
 from .capture import capture_region, exclude_from_capture
+from .mac_surface import keep_tool_visible, refresh_surface
 from .dialogs import Preferences
 from .ocr import create_ocr, screen_permission
 from .pipeline import Pipeline
@@ -85,11 +86,12 @@ def app_icon() -> QIcon:
 
 class RecognitionFrame(QWidget):
     def __init__(self, settings: Settings | None = None, *, ocr=None, pipeline=None, test_mode=False):
-        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.NoDropShadowWindowHint
         self.settings = settings or Settings.load()
         if self.settings.always_on_top:
             flags |= Qt.WindowType.WindowStaysOnTopHint
         super().__init__(None, flags)
+        keep_tool_visible(self)
         self.setWindowTitle("FloatTranslate Next")
         self.setWindowIcon(app_icon())
         # Per-pixel layered windows reject Windows capture exclusion (error 8).
@@ -174,6 +176,16 @@ class RecognitionFrame(QWidget):
             self.tray.show()
         QTimer.singleShot(0, self._refresh_capture_exclusion)
         QTimer.singleShot(9000, self._hide_hint)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if sys.platform == "darwin":
+            self._refresh_native_surface()
+            QTimer.singleShot(0, self._refresh_native_surface)
+
+    def _refresh_native_surface(self):
+        if self.isVisible() and not self._closing:
+            refresh_surface(self)
 
     def _load_geometry(self):
         screen = QGuiApplication.primaryScreen().availableGeometry()
@@ -501,9 +513,13 @@ class RecognitionFrame(QWidget):
         menu = QMenu(self)
         self._populate_menu(menu)
         self._menu_open = True
-        menu.exec(event.globalPos())
-        self._menu_open = False
-        menu.deleteLater()
+        try:
+            from .mac_menu import exec_native_menu
+            if not exec_native_menu(menu, event.globalPos()):
+                menu.exec(event.globalPos())
+        finally:
+            self._menu_open = False
+            menu.deleteLater()
 
     def _action(self, menu, text, callback, *, check=None, enabled=True):
         action = menu.addAction(text)
@@ -564,6 +580,7 @@ class RecognitionFrame(QWidget):
         if self._dialog is not None:
             self._dialog.raise_()
             return
+        self._prepare_dialog()
         dialog=TimingsDialog(self._metrics_history or [self._metrics],self,counts=self._run_counts)
         self._dialog=dialog
         dialog.finished.connect(self._dialog_finished)
@@ -619,11 +636,15 @@ class RecognitionFrame(QWidget):
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self.restore_interaction()
 
+    def _prepare_dialog(self):
+        """Allow desktop surfaces to yield space before a settings window opens."""
+
     def preferences(self, page):
         if self._dialog is not None:
             self._dialog.raise_()
             self._dialog.activateWindow()
             return
+        self._prepare_dialog()
         self._revision += 1
         self._dialog = Preferences(page, self.settings, self.secrets, self.preferences_pool, self.ocr, self)
         self._dialog.saved.connect(self._saved)
@@ -689,6 +710,7 @@ class RecognitionFrame(QWidget):
         except (ValueError,RuntimeError):
             self.preferences('api')
             return
+        self._prepare_dialog()
         picker=ModelPicker(self._models,self.settings.model,self,enabled=enabled)
         picker.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self._dialog=picker
@@ -735,6 +757,11 @@ class RecognitionFrame(QWidget):
         if self._busy or self._capture_pending or self._drag_origin is not None or self._closing or self._menu_open or self._dialog is not None or QApplication.activePopupWidget() is not None or QToolTip.isVisible():
             return
         if self._paused and not force:
+            return
+        # A fallback capture hides the translated window before it can compare
+        # scenes. Repeating that on a timer flashes even an unchanged page.
+        # Preserve completed text until an explicit refresh or invalidation.
+        if not force and self._regions and not self.visible_capture_available():
             return
         try:
             connection = self._connection()
