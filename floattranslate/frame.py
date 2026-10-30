@@ -19,6 +19,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QToolTip, QWidget
 
 from .capture import capture_region, exclude_from_capture
+from .mac_surface import keep_tool_visible, refresh_surface
 from .dialogs import Preferences
 from .ocr import create_ocr, screen_permission
 from .pipeline import Pipeline
@@ -90,6 +91,7 @@ class RecognitionFrame(QWidget):
         if self.settings.always_on_top:
             flags |= Qt.WindowType.WindowStaysOnTopHint
         super().__init__(None, flags)
+        keep_tool_visible(self)
         self.setWindowTitle("FloatTranslate Next")
         self.setWindowIcon(app_icon())
         # Per-pixel layered windows reject Windows capture exclusion (error 8).
@@ -174,6 +176,16 @@ class RecognitionFrame(QWidget):
             self.tray.show()
         QTimer.singleShot(0, self._refresh_capture_exclusion)
         QTimer.singleShot(9000, self._hide_hint)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if sys.platform == "darwin":
+            self._refresh_native_surface()
+            QTimer.singleShot(0, self._refresh_native_surface)
+
+    def _refresh_native_surface(self):
+        if self.isVisible() and not self._closing:
+            refresh_surface(self)
 
     def _load_geometry(self):
         screen = QGuiApplication.primaryScreen().availableGeometry()

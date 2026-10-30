@@ -17,6 +17,8 @@ from .settings import config_dir
 from .catalog import load_catalog, load_enabled
 from .capture import capture_region
 from .window_capture import capture_underlay
+from .mac_surface import keep_tool_visible, refresh_surface, release_glass
+from .ribbon import RIBBON_HEIGHT, paint_ribbon, paint_contour, ribbon_action
 
 PAD = 26
 
@@ -47,16 +49,29 @@ class AuxiliaryWindow(QWidget):
             flags |= Qt.WindowType.WindowTransparentForInput | Qt.WindowType.WindowDoesNotAcceptFocus
         super().__init__(None, flags)
         self.owner = owner
+        keep_tool_visible(self)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, False)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if sys.platform == "darwin":
+            self._refresh_native_surface()
+            # Qt applies its own NSPanel level after showEvent returns.
+            QTimer.singleShot(0, self._refresh_native_surface)
+
+    def _refresh_native_surface(self):
+        if self.isVisible() and not self.owner._closing:
+            refresh_surface(self)
 
 
 class BookmarkWindow(AuxiliaryWindow):
     def __init__(self, owner):
         super().__init__(owner, interactive=True)
         self.setWindowTitle('FloatTranslate · 书签')
-        self.resize(48, 90)
+        self._native_glass = False
+        self.resize(48, RIBBON_HEIGHT if sys.platform == "darwin" else 90)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.OpenHandCursor)
@@ -65,9 +80,18 @@ class BookmarkWindow(AuxiliaryWindow):
         self._hover = False
         self.setToolTip('点击展开 / 收起 · 拖动移动 · 右键设置')
 
+    def _refresh_native_surface(self):
+        if self.isVisible() and not self.owner._closing:
+            self._native_glass = refresh_surface(self, glass_rect=self.rect().adjusted(4, 2, -4, -2))
+            self.update()
+
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if sys.platform == "darwin":
+            paint_ribbon(p, self)
+            p.end()
+            return
         path = QPainterPath()
         path.moveTo(7, 2)
         path.lineTo(35, 2)
@@ -122,6 +146,12 @@ class BookmarkWindow(AuxiliaryWindow):
 
     def mouseMoveEvent(self, event):
         if self._origin is None:
+            if sys.platform == "darwin":
+                action = ribbon_action(event.position().toPoint())
+                text = {"toggle": "点击展开 / 收起 · 拖动移动", "translate": "立即翻译",
+                        "original": "显示原文", "move": "拖动移动 · 右键设置"}[action]
+                self.setToolTip(text)
+                self.update()
             return
         delta = event.globalPosition().toPoint()-self._origin
         if delta.manhattanLength() < 5 and not self._moved:
@@ -143,7 +173,13 @@ class BookmarkWindow(AuxiliaryWindow):
             if self.owner.working:
                 QTimer.singleShot(200, self.owner._automatic_scan)
         else:
-            self.owner.toggle_working()
+            action = ribbon_action(event.position().toPoint()) if sys.platform == "darwin" else "toggle"
+            if action == "translate":
+                self.owner.queue_manual_translation(0)
+            elif action == "original":
+                self.owner.clear_translation()
+            elif action == "toggle":
+                self.owner.toggle_working()
 
     def contextMenuEvent(self, event):
         self.owner.contextMenuEvent(event)
@@ -287,7 +323,7 @@ class BookmarkFrame(RecognitionFrame):
         screen = QGuiApplication.screenAt(point+QPoint(24,40)) or self.bookmark.screen()
         bounds = screen.availableGeometry()
         point.setX(max(bounds.left(),min(point.x(),bounds.right()-48)))
-        point.setY(max(bounds.top(),min(point.y(),bounds.bottom()-90)))
+        point.setY(max(bounds.top(),min(point.y(),bounds.bottom()-self.bookmark.height())))
         self.bookmark.move(point)
         scope,self._leftward = scope_geometry(point,self._preferred_size,bounds)
         self._upward=scope.top()<point.y()
@@ -357,34 +393,46 @@ class BookmarkFrame(RecognitionFrame):
             p.drawText(text_box,int(flags),item.translation)
             p.restore()
         p.restore()
-        border = QRectF(self.content_rect())
-        width = max(1,min(2,self.settings.border_width)*.75)
-        color = QColor('#a2aabb' if self._paused else '#c47487' if self._last_status.startswith('错误') else '#8dadd5')
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        if self._busy and not self._paused and not self._last_status.startswith('错误'):
-            # A fixed-size contour gently brightens over 3.2 seconds. Never
-            # expand the outline or fade the translated content with it.
-            elapsed = time.monotonic()-self._breath_started
-            strength = 0.5-0.5*math.cos(math.tau*elapsed/3.2)
-            if self.settings.reduce_motion:
-                strength = 0.5
-            color = QColor('#4387ee')
-            color.setAlpha(round(150+90*strength))
-            if not self._shaped:
-                # One compact glow, clipped outside the selection, with no
-                # auxiliary window, concentric outlines or changing radius.
-                p.save()
-                outside = QRegion(self.rect())-QRegion(self.content_rect())
-                p.setClipRegion(outside)
-                p.setPen(QPen(QColor(70,135,245,round(8+12*strength)),5))
-                p.drawRoundedRect(border,9,9)
-                p.restore()
-        p.setPen(QPen(color,width))
-        p.drawRoundedRect(border,9,9)
+        if sys.platform == "darwin":
+            paint_contour(p, self.content_rect(), phase=self._phase,
+                          busy=self._busy, paused=self._paused,
+                          error=self._last_status.startswith("错误"),
+                          reduce_motion=self.settings.reduce_motion,
+                          border_width=self.settings.border_width)
+        else:
+            border = QRectF(self.content_rect())
+            width = max(1,min(2,self.settings.border_width)*.75)
+            color = QColor('#a2aabb' if self._paused else '#c47487' if self._last_status.startswith('错误') else '#8dadd5')
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            if self._busy and not self._paused and not self._last_status.startswith('错误'):
+                # A fixed-size contour gently brightens over 3.2 seconds. Never
+                # expand the outline or fade the translated content with it.
+                elapsed = time.monotonic()-self._breath_started
+                strength = 0.5-0.5*math.cos(math.tau*elapsed/3.2)
+                if self.settings.reduce_motion:
+                    strength = 0.5
+                color = QColor('#4387ee')
+                color.setAlpha(round(150+90*strength))
+                if not self._shaped:
+                    # One compact glow, clipped outside the selection, with no
+                    # auxiliary window, concentric outlines or changing radius.
+                    p.save()
+                    outside = QRegion(self.rect())-QRegion(self.content_rect())
+                    p.setClipRegion(outside)
+                    p.setPen(QPen(QColor(70,135,245,round(8+12*strength)),5))
+                    p.drawRoundedRect(border,9,9)
+                    p.restore()
+            p.setPen(QPen(color,width))
+            p.drawRoundedRect(border,9,9)
         if self._handle_visible:
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QColor('#1460ff'))
-            p.drawRoundedRect(QRectF(self.handle_rect()),4,4)
+            if sys.platform == "darwin":
+                p.setPen(QPen(QColor(255,255,255,210),1))
+                p.setBrush(QColor('#5a9ef1'))
+                p.drawEllipse(QRectF(self.handle_rect()).adjusted(3,3,-3,-3))
+            else:
+                p.setBrush(QColor('#1460ff'))
+                p.drawRoundedRect(QRectF(self.handle_rect()),4,4)
         p.end()
 
     def _snapshot(self):
@@ -502,11 +550,21 @@ class BookmarkFrame(RecognitionFrame):
             self.bookmark.update()
 
     def _animate(self):
-        self._phase = (self._phase+10) % 360
+        self._phase = (time.monotonic()*360/2.8) % 360 if sys.platform == "darwin" else (self._phase+10) % 360
         if self._ready:
             # Update only the contour band, not the translated paragraphs.
             inner = self.content_rect().adjusted(3,3,-3,-3)
             self.update(QRegion(self.rect())-QRegion(inner))
+            self.bookmark.update()
+
+    def clear_translation(self):
+        super().clear_translation()
+        if self._ready:
+            self.bookmark.update()
+
+    def set_paused(self, paused):
+        super().set_paused(paused)
+        if self._ready:
             self.bookmark.update()
 
     def _refresh_capture_exclusion(self):
@@ -846,7 +904,7 @@ class BookmarkFrame(RecognitionFrame):
         self.bookmark.raise_()
 
     def show_help(self):
-        self.notify('点击书签或 '+self.settings.toggle_shortcut+'：展开 / 收起\n拖动整块书签：移动\n蓝色角部触点：缩放（触底时移到上方）\n右键书签 / 边框 / 托盘：全部设置\nEnter（点选书签 / 边框后）：翻译；Esc：显示原文\n全局立即翻译：'+self.settings.translate_shortcut.replace('Return','Enter')+'\n翻译时外沿呼吸，完成后保持静止')
+        self.notify('点击书签或 '+self.settings.toggle_shortcut+'：展开 / 收起\n拖动整块书签：移动\n蓝色角部触点：缩放（触底时移到上方）\n右键书签 / 边框 / 托盘：全部设置\nEnter（点选书签 / 边框后）：翻译；Esc：显示原文\n全局立即翻译：'+self.settings.translate_shortcut.replace('Return','Enter')+'\n翻译时折射高光沿边框流动，完成后保持静止')
 
     def _save_geometry(self):
         if self._ready:
@@ -860,4 +918,6 @@ class BookmarkFrame(RecognitionFrame):
             self.transition.animation.stop()
             for window in (self.bookmark,self.halo,self.transition):
                 window.hide()
+                if sys.platform == "darwin":
+                    release_glass(window)
         super().closeEvent(event)
