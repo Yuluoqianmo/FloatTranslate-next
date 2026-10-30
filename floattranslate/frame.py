@@ -513,9 +513,13 @@ class RecognitionFrame(QWidget):
         menu = QMenu(self)
         self._populate_menu(menu)
         self._menu_open = True
-        menu.exec(event.globalPos())
-        self._menu_open = False
-        menu.deleteLater()
+        try:
+            from .mac_menu import exec_native_menu
+            if not exec_native_menu(menu, event.globalPos()):
+                menu.exec(event.globalPos())
+        finally:
+            self._menu_open = False
+            menu.deleteLater()
 
     def _action(self, menu, text, callback, *, check=None, enabled=True):
         action = menu.addAction(text)
@@ -576,6 +580,7 @@ class RecognitionFrame(QWidget):
         if self._dialog is not None:
             self._dialog.raise_()
             return
+        self._prepare_dialog()
         dialog=TimingsDialog(self._metrics_history or [self._metrics],self,counts=self._run_counts)
         self._dialog=dialog
         dialog.finished.connect(self._dialog_finished)
@@ -631,11 +636,15 @@ class RecognitionFrame(QWidget):
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self.restore_interaction()
 
+    def _prepare_dialog(self):
+        """Allow desktop surfaces to yield space before a settings window opens."""
+
     def preferences(self, page):
         if self._dialog is not None:
             self._dialog.raise_()
             self._dialog.activateWindow()
             return
+        self._prepare_dialog()
         self._revision += 1
         self._dialog = Preferences(page, self.settings, self.secrets, self.preferences_pool, self.ocr, self)
         self._dialog.saved.connect(self._saved)
@@ -701,6 +710,7 @@ class RecognitionFrame(QWidget):
         except (ValueError,RuntimeError):
             self.preferences('api')
             return
+        self._prepare_dialog()
         picker=ModelPicker(self._models,self.settings.model,self,enabled=enabled)
         picker.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self._dialog=picker

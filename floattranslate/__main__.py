@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QApplication
 
 from .frame import app_icon
 from .bookmark import BookmarkFrame
-from .style import STYLESHEET
+from .style import STYLESHEET, MAC_STYLESHEET
 
 
 def configure_application(application):
@@ -19,9 +19,14 @@ def configure_application(application):
     application.setApplicationName("FloatTranslate Next")
     application.setOrganizationName("FloatTranslate")
     application.setWindowIcon(app_icon())
-    application.setFont(QFont("PingFang SC" if sys.platform == "darwin" else "Microsoft YaHei UI", 10))
-    application.setStyle("Fusion")
-    application.setStyleSheet(STYLESHEET)
+    if sys.platform == "darwin":
+        # Keep the platform font, control metrics, colors and dark appearance.
+        application.setStyle("macOS")
+        application.setStyleSheet(MAC_STYLESHEET)
+    else:
+        application.setFont(QFont("Microsoft YaHei UI", 10))
+        application.setStyle("Fusion")
+        application.setStyleSheet(STYLESHEET)
 
 
 def main():

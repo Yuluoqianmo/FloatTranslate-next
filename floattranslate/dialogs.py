@@ -21,6 +21,8 @@ class SelectBox(QComboBox):
     """Always show an explicit chevron, including with the custom Qt stylesheet."""
     def paintEvent(self,event):
         super().paintEvent(event)
+        if sys.platform == "darwin":
+            return
         painter=QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
@@ -86,7 +88,8 @@ class Preferences(QDialog):
         if page=='api':
             host=QWidget()
             host.setObjectName("api-form-host")
-            host.setStyleSheet("QWidget#api-form-host {background:white;}")
+            if sys.platform != "darwin":
+                host.setStyleSheet("QWidget#api-form-host {background:white;}")
             host_layout=QVBoxLayout(host)
             host_layout.setContentsMargins(0,0,8,0)
             host_layout.addLayout(self.form)

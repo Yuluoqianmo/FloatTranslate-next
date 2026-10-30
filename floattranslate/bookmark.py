@@ -456,12 +456,15 @@ class BookmarkFrame(RecognitionFrame):
             super().show()
             self._refresh_capture_exclusion()
 
+    def _prepare_dialog(self):
+        if sys.platform == "darwin":
+            # Settings are independent of the desktop scope. Do not leave an
+            # overlay behind the form or reopen it when the form closes.
+            self.set_working(False, animate=False, scan=False)
+
     def toggle_working(self):
-        if self._dialog is not None:
-            self._dialog.raise_()
-            return
         self.set_working(not self.working)
-        if self.working:
+        if self.working and self._dialog is None:
             self.bookmark.activateWindow()
             self.bookmark.setFocus(Qt.FocusReason.ShortcutFocusReason)
 
@@ -773,9 +776,15 @@ class BookmarkFrame(RecognitionFrame):
         menu.clear()
         if tray:
             self._action(menu,'显示并恢复交互',self.restore_interaction)
-        self._action(menu,('收起，进入待机' if self.working else '展开翻译区域')+'  '+self.settings.toggle_shortcut,
-                     lambda:QTimer.singleShot(0,self.toggle_working))
-        self._action(menu,'立即翻译  '+self.settings.translate_shortcut.replace('Return','Enter'),lambda:self.queue_manual_translation(120),enabled=not self._busy)
+        toggle_title = '收起，进入待机' if self.working else '展开翻译区域'
+        translate_title = '立即翻译'
+        if sys.platform != 'darwin':
+            toggle_title += '  '+self.settings.toggle_shortcut
+            translate_title += '  '+self.settings.translate_shortcut.replace('Return','Enter')
+        toggle = self._action(menu,toggle_title,lambda:QTimer.singleShot(0,self.toggle_working))
+        translate = self._action(menu,translate_title,lambda:self.queue_manual_translation(120),enabled=not self._busy)
+        toggle.setProperty('menuShortcut',self.settings.toggle_shortcut)
+        translate.setProperty('menuShortcut',self.settings.translate_shortcut)
         self._action(menu,'自动翻译',self.set_auto,check=self._auto)
         models=menu.addMenu('选择模型')
         try:
@@ -814,6 +823,7 @@ class BookmarkFrame(RecognitionFrame):
         if self._dialog:
             self._dialog.raise_()
             return
+        self._prepare_dialog()
         dialog = QDialog(self.bookmark)
         dialog.setWindowTitle('翻译与展开快捷键')
         layout = QVBoxLayout(dialog)
@@ -856,7 +866,7 @@ class BookmarkFrame(RecognitionFrame):
         buttons.accepted.connect(save)
         buttons.rejected.connect(dialog.reject)
         self._dialog = dialog
-        dialog.finished.connect(lambda code:setattr(self,'_dialog',None))
+        dialog.finished.connect(self._dialog_finished)
         dialog.show()
 
     def apply_settings(self, settings):
